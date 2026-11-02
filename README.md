@@ -1,6 +1,6 @@
 # SWS2 CS2 Rock The Vote
 
-Player-requested map voting for SwiftlyS2. RTV reads its map choices from `sws2-cs2mapmanager`, displays ballots with `sws2-cs2menus`, and requests the winning map through the same shared manager.
+Player map reservations and consent-based map changes for SwiftlyS2. The map list and map changes come from `sws2-cs2mapmanager`; `sws2-cs2menus` displays the reservation menu.
 
 ## Requirements
 
@@ -13,12 +13,11 @@ Load the shared menu and map manager plugins before this plugin.
 
 ## How it works
 
-1. A player uses `!rtv` to request a vote.
-2. A vote starts after both the minimum request count and configured fraction of connected human players are reached.
-3. The plugin randomly selects up to the configured number of maps, excluding the current map.
-4. Eligible players receive a clickable HUD ballot. Each connected player can vote once; disconnecting removes that player's request and vote.
-5. The map with the most votes wins. Ties are selected randomly. With no votes, the current map remains.
-6. After the configured delay, the winner is passed to `sws2-cs2mapmanager`, which handles local and Workshop maps.
+1. Any player can use `!yd` to open the map reservation menu. The menu shows the Workshop preview, title and creator when Steam metadata is available.
+2. `!yd <map name>` reserves a map directly. The reservation is announced in chat and a later reservation replaces it.
+3. Players use `!rtv` to agree to the reserved map. If nobody has reserved one, the next map in mapmanager's configured order is selected.
+4. One player is enough on a one-player server; two players are required when there are two; two are required when there are three; servers with four or more players require at least 80% of connected human players. Each player counts once.
+5. Once the threshold is reached, the map is passed to `sws2-cs2mapmanager` after `ChangeDelaySeconds`. Disconnecting removes that player's agreement.
 
 ## Configuration
 
@@ -28,19 +27,14 @@ Edit `configs/plugins/sws2-cs2rockthevote/config.jsonc`:
 {
   "sws2-cs2rockthevote": {
     "Enabled": true,
-    "MinimumPlayers": 4,
-    "MinimumRequests": 3,
-    "RequestRatio": 0.6,
-    "OptionCount": 5,
-    "VoteDurationSeconds": 20,
-    "RequestCooldownSeconds": 60,
-    "VoteCooldownSeconds": 180,
     "ChangeDelaySeconds": 3
   }
 }
 ```
 
-Map names and Workshop IDs are configured only in `sws2-cs2mapmanager`. Changes are hot-reloaded.
+Map names and Workshop IDs are configured only in `sws2-cs2mapmanager`. Workshop titles, creators and preview images are read from Steam when a player opens `!yd`; chat reservation and RTV commands work if that metadata request is unavailable. Changes are hot-reloaded.
+
+Workshop thumbnails are rendered by the `hudlayout` menu backend. The classic menu fallback still shows the map title and author text.
 
 ## Build
 
