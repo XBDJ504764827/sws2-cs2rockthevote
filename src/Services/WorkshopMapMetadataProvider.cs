@@ -12,12 +12,17 @@ internal sealed class WorkshopMapMetadataProvider : IDisposable
     private const string DetailsEndpoint =
         "https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/";
 
+    private static readonly TimeSpan RefreshLockWait = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan RefreshRetryDelay = TimeSpan.FromMinutes(5);
+    private static readonly WorkshopMapMetadata EmptyMetadata = new(null, null, null);
+
     private readonly ILogger _logger;
     private readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(8) };
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private readonly object _sync = new();
     private readonly Dictionary<string, WorkshopMapMetadata> _metadata = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string?> _authors = new(StringComparer.Ordinal);
+    private DateTimeOffset _retryAfterUtc;
 
     public WorkshopMapMetadataProvider(ILogger logger)
     {
@@ -35,20 +40,25 @@ internal sealed class WorkshopMapMetadataProvider : IDisposable
             .Distinct(StringComparer.Ordinal)
             .ToArray();
 
-        await _refreshLock.WaitAsync(cancellationToken);
+        var lockTaken = await _refreshLock.WaitAsync(RefreshLockWait, cancellationToken);
+        if (!lockTaken)
+        {
+            // A background warm-up or another menu is already fetching metadata. Do not block
+            // the reservation menu on a slow Steam request; show cached/fallback values now.
+            return Snapshot(ids);
+        }
+
         try
         {
             string[] missing;
+            bool shouldRefresh;
             lock (_sync)
             {
                 missing = ids.Where(id => !_metadata.ContainsKey(id)).ToArray();
-                foreach (var id in missing)
-                {
-                    _metadata[id] = new WorkshopMapMetadata(null, null, null);
-                }
+                shouldRefresh = missing.Length > 0 && DateTimeOffset.UtcNow >= _retryAfterUtc;
             }
 
-            if (missing.Length > 0)
+            if (shouldRefresh)
             {
                 await RefreshAsync(missing, cancellationToken);
             }
@@ -58,9 +68,17 @@ internal sealed class WorkshopMapMetadataProvider : IDisposable
             _refreshLock.Release();
         }
 
+        return Snapshot(ids);
+    }
+
+    private IReadOnlyDictionary<string, WorkshopMapMetadata> Snapshot(IEnumerable<string> ids)
+    {
         lock (_sync)
         {
-            return ids.ToDictionary(id => id, id => _metadata[id], StringComparer.Ordinal);
+            return ids.ToDictionary(
+                id => id,
+                id => _metadata.TryGetValue(id, out var metadata) ? metadata : EmptyMetadata,
+                StringComparer.Ordinal);
         }
     }
 
@@ -104,6 +122,15 @@ internal sealed class WorkshopMapMetadataProvider : IDisposable
                         ReadString(item, "title"),
                         ReadString(item, "creator"),
                         ReadHttpsUrl(item, "preview_url")));
+                }
+
+                lock (_sync)
+                {
+                    _retryAfterUtc = DateTimeOffset.MinValue;
+                    foreach (var entry in entries)
+                    {
+                        _metadata[entry.Id] = new WorkshopMapMetadata(entry.Title, null, entry.ImageUrl);
+                    }
                 }
 
                 using var profileGate = new SemaphoreSlim(4, 4);
@@ -157,7 +184,22 @@ internal sealed class WorkshopMapMetadataProvider : IDisposable
             }
             catch (Exception exception)
             {
-                _logger.LogWarning(exception, "[sws2-cs2rockthevote] Failed to load Workshop map details");
+                lock (_sync)
+                {
+                    _retryAfterUtc = DateTimeOffset.UtcNow + RefreshRetryDelay;
+                }
+
+                var root = exception.GetBaseException();
+                if (root is HttpRequestException or TimeoutException or TaskCanceledException or IOException)
+                {
+                    _logger.LogWarning(
+                        "[sws2-cs2rockthevote] Steam Workshop metadata is temporarily unavailable: {Message}",
+                        root.Message);
+                }
+                else
+                {
+                    _logger.LogWarning(exception, "[sws2-cs2rockthevote] Failed to load Workshop map details");
+                }
             }
         }
     }

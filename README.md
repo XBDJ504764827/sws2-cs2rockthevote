@@ -32,7 +32,7 @@ Edit `configs/plugins/sws2-cs2rockthevote/config.jsonc`:
 }
 ```
 
-Map names and Workshop IDs are configured only in `sws2-cs2mapmanager`. Workshop titles, creators and preview images are read from Steam when a player opens `!yd`; chat reservation and RTV commands work if that metadata request is unavailable. Changes are hot-reloaded.
+Map names and Workshop IDs are configured only in `sws2-cs2mapmanager`. Workshop titles, creators and preview images are read from Steam when a player opens `!yd`; chat reservation and RTV commands work if that metadata request is unavailable. Temporary Steam metadata failures are retried later, and the reservation menu does not wait indefinitely for an in-flight refresh. Changes are hot-reloaded.
 
 Workshop thumbnails are rendered by the `hudlayout` menu backend. The classic menu fallback still shows the map title and author text.
 
