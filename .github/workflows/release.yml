@@ -116,7 +116,9 @@ jobs:
       - name: Build (warnings are errors)
         env:
           VERSION: ${{ needs.version.outputs.version }}
-        run: dotnet build sws2-cs2rockthevote.csproj -c Release --no-restore -warnaserror -p:Version="${VERSION}"
+        # NU1902 comes from the pinned MySqlConnector inside the menus contract
+        # project; this plugin already pins the fixed 2.6.1 version directly.
+        run: dotnet build sws2-cs2rockthevote.csproj -c Release --no-restore -warnaserror -p:WarningsNotAsErrors=NU1902 -p:Version="${VERSION}"
 
       - name: Publish release package
         run: dotnet publish sws2-cs2rockthevote.csproj -c Release --no-restore --no-build
