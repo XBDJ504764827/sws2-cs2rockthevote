@@ -17,7 +17,7 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
 {
     private readonly object _sync = new();
     private RockTheVoteSettings _settings = new();
-    private readonly Dictionary<int, DateTimeOffset> _requestCooldowns = [];
+    private readonly Dictionary<ulong, DateTimeOffset> _requestCooldowns = [];
     private readonly HashSet<int> _requests = [];
     private readonly HashSet<int> _voters = [];
     private readonly Dictionary<string, HashSet<int>> _votes = new(StringComparer.OrdinalIgnoreCase);
@@ -95,8 +95,6 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         _mapManager = null;
         _menus = null;
         _provider?.Dispose();
-        _mapManager = null;
-        _provider?.Dispose();
         _provider = null;
     }
 
@@ -116,13 +114,13 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
 
         if (!_settings.Enabled)
         {
-            Reply(player, "Rock the Vote is disabled.");
+            Reply(player, "rtv.disabled");
             return;
         }
 
         if (_menus is not { IsAvailable: true } || _mapManager is null)
         {
-            Reply(player, "RTV services are unavailable. Ensure sws2-cs2menus and sws2-cs2mapmanager are loaded.");
+            Reply(player, "rtv.unavailable");
             return;
         }
 
@@ -134,7 +132,7 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
             connectedPlayers = GetEligiblePlayers().Count;
             if (_voteActive)
             {
-                Reply(player, "A map vote is already in progress.");
+                Reply(player, "rtv.vote_active");
                 return;
             }
 
@@ -142,24 +140,24 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
             if (DateTimeOffset.UtcNow < nextVoteAllowed)
             {
                 var seconds = Math.Ceiling((nextVoteAllowed - DateTimeOffset.UtcNow).TotalSeconds);
-                Reply(player, $"The next RTV vote can start in {seconds:0} seconds.");
+                Reply(player, "rtv.cooldown", seconds);
                 return;
             }
 
             if (connectedPlayers < Math.Max(1, _settings.MinimumPlayers))
             {
-                Reply(player, $"At least {_settings.MinimumPlayers} players are required to request a vote.");
+                Reply(player, "rtv.minimum_players", _settings.MinimumPlayers);
                 return;
             }
 
-            if (_requestCooldowns.TryGetValue(player.PlayerID, out var cooldownUntil)
+            if (_requestCooldowns.TryGetValue(player.SteamID, out var cooldownUntil)
                 && cooldownUntil > DateTimeOffset.UtcNow)
             {
-                Reply(player, $"You can request RTV again in {Math.Ceiling((cooldownUntil - DateTimeOffset.UtcNow).TotalSeconds):0} seconds.");
+                Reply(player, "rtv.request_cooldown", Math.Ceiling((cooldownUntil - DateTimeOffset.UtcNow).TotalSeconds));
                 return;
             }
 
-            _requestCooldowns[player.PlayerID] = DateTimeOffset.UtcNow.AddSeconds(Math.Max(0, _settings.RequestCooldownSeconds));
+            _requestCooldowns[player.SteamID] = DateTimeOffset.UtcNow.AddSeconds(Math.Max(0, _settings.RequestCooldownSeconds));
             _requests.Add(player.PlayerID);
             requiredRequests = RequiredRequests(connectedPlayers);
 
@@ -170,14 +168,19 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
             }
         }
 
-        Reply(player, $"RTV request recorded ({GetRequestCount()}/{requiredRequests}).");
-        Broadcast($"{player.Name} requested a map vote ({GetRequestCount()}/{requiredRequests}).");
+        Reply(player, "rtv.request_recorded", GetRequestCount(), requiredRequests);
+        Broadcast("rtv.requested", player.Name, GetRequestCount(), requiredRequests);
     }
 
     private void StartVoteLocked()
     {
         var players = GetEligiblePlayers();
+        var currentMapName = Core.Engine.GlobalVars.MapName.ToString();
+        var currentWorkshopId = Core.Engine.WorkshopId;
         var maps = _mapManager?.GetMaps()
+            .Where(map => map.Kind == MapKind.Workshop
+                ? !map.Value.Equals(currentWorkshopId, StringComparison.OrdinalIgnoreCase)
+                : !map.Value.Equals(currentMapName, StringComparison.OrdinalIgnoreCase))
             .OrderBy(_ => Random.Shared.Next())
             .Take(Math.Clamp(_settings.OptionCount, 2, 5))
             .ToArray() ?? [];
@@ -185,14 +188,14 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         if (players.Count < Math.Max(1, _settings.MinimumPlayers))
         {
             _requests.Clear();
-            Broadcast("There are not enough players to start a map vote.");
+            Broadcast("rtv.minimum_players_start");
             return;
         }
 
         if (maps.Length < 2 || _menus is not { IsAvailable: true })
         {
             _requests.Clear();
-            Broadcast("A map vote could not start: at least two configured maps and the menu service are required.");
+            Broadcast("rtv.no_maps");
             return;
         }
 
@@ -211,7 +214,7 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
             _votes[map.Id] = [];
         }
 
-        Broadcast($"Map vote started. Use !rtv to open the ballot. Voting ends in {_settings.VoteDurationSeconds} seconds.");
+        Broadcast("rtv.started", _settings.VoteDurationSeconds);
         _voteTimer?.Cancel();
         _voteTimer = Core.Scheduler.DelayBySeconds(Math.Clamp(_settings.VoteDurationSeconds, 5, 120), () => FinishVote(generation));
         foreach (var player in players)
@@ -227,10 +230,10 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
             return;
         }
 
-        var current = Core.Translation.GetPlayerLocalizer(player);
-        var builder = _menus.CreateMenu("Rock the Vote")
+        var localizer = Core.Translation.GetPlayerLocalizer(player);
+        var builder = _menus.CreateMenu(localizer["rtv.vote.title"])
             .Id($"rtv.vote.{generation}.{player.PlayerID}")
-            .Comment($"Vote for the next map ({_votes.Values.Sum(voters => voters.Count)} votes)")
+            .Comment(localizer["rtv.vote.comment", _votes.Values.Sum(voters => voters.Count)])
             .PageSize(5)
             .ShowClose()
             .CloseOnSelect();
@@ -249,6 +252,7 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         if (result != MenuOpenResult.Opened)
         {
             Core.Logger.LogDebug("[sws2-cs2rockthevote] Could not open ballot for player {PlayerId}: {Result}", player.PlayerID, result);
+            Reply(player, "rtv.vote_open_failed");
         }
     }
 
@@ -258,20 +262,20 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         {
             if (!_voteActive || generation != _voteGeneration || !_voteMaps.ContainsKey(map.Id))
             {
-                Reply(player, "This map vote has ended.");
+                Reply(player, "rtv.vote_ended");
                 return;
             }
 
             if (!_voters.Add(player.PlayerID))
             {
-                Reply(player, "You have already voted in this map vote.");
+                Reply(player, "rtv.already_voted");
                 return;
             }
 
             _votes[map.Id].Add(player.PlayerID);
         }
 
-        Reply(player, $"Your vote for {map.Name} has been recorded.");
+        Reply(player, "rtv.vote_recorded", map.Name);
     }
 
     private void FinishVote(int generation)
@@ -302,11 +306,11 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
 
         if (winner is null || winningVotes == 0)
         {
-            Broadcast("Map vote ended without votes. The current map will remain.");
+            Broadcast("rtv.no_votes");
             return;
         }
 
-        Broadcast($"Map vote winner: {winner.Name} ({winningVotes} vote(s)). Changing map in {_settings.ChangeDelaySeconds} seconds.");
+        Broadcast("rtv.winner", winner.Name, winningVotes, _settings.ChangeDelaySeconds);
         Core.Scheduler.DelayBySeconds(Math.Clamp(_settings.ChangeDelaySeconds, 0, 30), () => RequestWinningMap(winner));
     }
 
@@ -314,7 +318,7 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
     {
         if (_mapManager is null)
         {
-            Broadcast("Map change failed: sws2-cs2mapmanager is not loaded.");
+            Broadcast("rtv.map_manager_unavailable");
             return;
         }
 
@@ -325,30 +329,30 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
             case MapChangeRequestStatus.DownloadStarted:
                 break;
             case MapChangeRequestStatus.DownloadAlreadyPending:
-                Broadcast($"The Workshop map {map.Name} is already downloading.");
+                Broadcast("rtv.download_pending", map.Name);
                 break;
             case MapChangeRequestStatus.Busy:
-                Broadcast("Map change failed: another map change is already in progress.");
+                Broadcast("rtv.map_change_busy");
                 break;
             default:
-                Broadcast($"Map change failed: {result.Error ?? map.Name}.");
+                Broadcast("rtv.map_change_failed", result.Error ?? map.Name);
                 break;
         }
     }
 
     private void OnMapChangeProgressed(object? sender, MapChangeProgressEventArgs args)
     {
-        var message = args.Progress switch
+        (string? Key, string? Value) message = args.Progress switch
         {
-            MapChangeProgress.DownloadStarted => $"Downloading Workshop map {args.Map.Name}; the server will change when it is ready.",
-            MapChangeProgress.ChangeIssued => $"Changing map to {args.Map.Name}.",
-            MapChangeProgress.Failed => $"Map change failed: {args.Error ?? args.Map.Name}.",
-            _ => null
+            MapChangeProgress.DownloadStarted => ("rtv.download_started", args.Map.Name),
+            MapChangeProgress.ChangeIssued => ("rtv.change_started", args.Map.Name),
+            MapChangeProgress.Failed => ("rtv.map_change_failed", args.Error ?? args.Map.Name),
+            _ => (null, null)
         };
 
-        if (message is not null)
+        if (message.Key is not null)
         {
-            Broadcast(message);
+            Broadcast(message.Key, message.Value ?? string.Empty);
         }
     }
 
@@ -377,8 +381,9 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
             _requests.Clear();
             _voters.Clear();
             _votes.Clear();
-            _voteMaps.Clear();
             _voteGeneration++;
+            _nextVoteAllowed = DateTimeOffset.MinValue;
+            _requestCooldowns.Clear();
         }
     }
 
@@ -403,17 +408,18 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         }
     }
 
-    private void Reply(IPlayer player, string message)
+    private void Reply(IPlayer player, string key, params object[] args)
     {
         var localizer = Core.Translation.GetPlayerLocalizer(player);
+        var message = args.Length == 0 ? localizer[key] : localizer[key, args];
         player.SendChat($"{localizer["rtv.prefix"]} {message}");
     }
 
-    private void Broadcast(string message)
+    private void Broadcast(string key, params object[] args)
     {
         foreach (var player in Core.PlayerManager.GetAllValidPlayers().Where(player => !player.IsFakeClient))
         {
-            Reply(player, message);
+            Reply(player, key, args);
         }
     }
 }
