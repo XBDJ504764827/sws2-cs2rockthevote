@@ -53,3 +53,15 @@ dotnet publish sws2-cs2rockthevote.csproj -c Release --no-restore
 ```
 
 Pull requests and `develop` pushes build downloadable test packages. Merging to `main` builds a versioned package and publishes a GitHub Release; dispatching the release workflow allows choosing patch, minor, or major.
+
+## Versioning and releases
+
+This repository uses a `develop` -> `main` flow:
+
+- Pull requests run CI: `dotnet format`, a Release build with warnings as errors, package validation and a test-package artifact.
+- Each PR run gets a traceable preview version such as `1.0.1-pr.12.37`.
+- For pull requests from this repository, CI also publishes or updates a pre-release named `vX.Y.Z-pr.<PR>.<run>`. It is deleted when the PR closes.
+- When a PR is merged into `main`, the release workflow computes the next patch version from the latest stable `vX.Y.Z` tag, injects it into `src/VersionInfo.cs`, builds the package, creates the tag and publishes a GitHub Release.
+- A manual release can be started with `workflow_dispatch` and a `patch`, `minor` or `major` bump.
+
+No manual version editing is required. The value committed in `src/VersionInfo.cs` is only a fallback for local builds.
