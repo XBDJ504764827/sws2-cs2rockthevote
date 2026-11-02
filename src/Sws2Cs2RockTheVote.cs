@@ -331,6 +331,11 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
 
     private void RequestWinningMap(MapInfo map)
     {
+        if (!_loaded)
+        {
+            return;
+        }
+
         if (_mapManager is null)
         {
             Broadcast("rtv.map_manager_unavailable");

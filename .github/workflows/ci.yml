@@ -52,7 +52,6 @@ jobs:
           else
             VERSION="${BASE_VERSION}"
           fi
-
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Build version: ${VERSION}"
 
@@ -146,17 +145,16 @@ jobs:
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const body = [
               marker,
-              '### 🧪 Test package ready',
+              '### Test package ready',
               '',
               `Build passed for version \`${version}\`.`,
               '',
-              'Download the test zip from the **Artifacts** section of this workflow run.',
+              'Download the zip from the **Artifacts** section of this workflow run.',
               '',
               '**Install:** extract it into `csgo/addons/swiftlys2/plugins/` and load `sws2-cs2rockthevote`. Ensure `sws2-cs2menus` and `sws2-cs2mapmanager` are loaded first.',
               '',
               `[Open workflow run](${runUrl})`
             ].join('\n');
-
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -199,7 +197,6 @@ jobs:
           if [ -n "$PREV_TAGS" ]; then
             while read -r OLD_TAG; do gh release delete "$OLD_TAG" --cleanup-tag --yes || true; done <<< "$PREV_TAGS"
           fi
-
           cat > release-notes.md <<EOF
           ## sws2-cs2rockthevote v${VERSION} — PR #${PR_NUMBER} preview
 
@@ -207,10 +204,9 @@ jobs:
 
           **Commit:** \`${HEAD_SHA}\`
 
-          Automated pre-release, replaced on each PR update and removed when the PR is closed.
+          Automated pre-release, replaced on each PR update and removed when the PR closes.
 
           ### Install
-          Extract the zip into \`csgo/addons/swiftlys2/plugins/\`. Load sws2-cs2menus and sws2-cs2mapmanager before sws2-cs2rockthevote.
+          Extract the zip into \`csgo/addons/swiftlys2/plugins/\`. Load sws2-cs2menus and sws2-cs2mapmanager first.
           EOF
-
           gh release create "$TAG" release/*.zip --prerelease --latest=false --title "sws2-cs2rockthevote v${VERSION} (PR #${PR_NUMBER})" --notes-file release-notes.md --target "$HEAD_SHA"
