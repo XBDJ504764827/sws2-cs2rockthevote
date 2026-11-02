@@ -11,6 +11,9 @@
     <RootNamespace>Sws2Cs2RockTheVote</RootNamespace>
     <OutputPath>$(MSBuildThisFileDirectory)build/</OutputPath>
     <PublishDir>$(OutputPath)publish/sws2-cs2rockthevote</PublishDir>
+    <!-- The contract repositories are cloned into the workspace by CI; keep their
+         sources out of this project's default item globs. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);sws2-cs2menus/**;sws2-cs2mapmanager/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
