@@ -134,52 +134,69 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
 
         int connectedPlayers;
         int requiredRequests;
-        bool shouldStartVote;
+        int activeVoteGeneration = 0;
+        bool shouldStartVote = false;
+        bool reopenBallot = false;
         lock (_sync)
         {
             connectedPlayers = GetEligiblePlayers().Count;
             if (_voteActive)
             {
-                Reply(player, "rtv.vote_active");
-                return;
-            }
+                activeVoteGeneration = _voteGeneration;
+                if (_voters.Contains(player.PlayerID))
+                {
+                    Reply(player, "rtv.already_voted");
+                    return;
+                }
 
-            if (DateTimeOffset.UtcNow < _nextVoteAllowed)
-            {
-                var seconds = Math.Ceiling((_nextVoteAllowed - DateTimeOffset.UtcNow).TotalSeconds);
-                Reply(player, "rtv.cooldown", seconds);
-                return;
+                reopenBallot = true;
+                requiredRequests = 0;
             }
+            else
+            {
+                if (DateTimeOffset.UtcNow < _nextVoteAllowed)
+                {
+                    var seconds = Math.Ceiling((_nextVoteAllowed - DateTimeOffset.UtcNow).TotalSeconds);
+                    Reply(player, "rtv.cooldown", seconds);
+                    return;
+                }
 
-            if (connectedPlayers < Math.Max(1, _settings.MinimumPlayers))
-            {
-                Reply(player, "rtv.minimum_players", _settings.MinimumPlayers);
-                return;
-            }
+                if (connectedPlayers < Math.Max(1, _settings.MinimumPlayers))
+                {
+                    Reply(player, "rtv.minimum_players", _settings.MinimumPlayers);
+                    return;
+                }
 
-            foreach (var expiredPlayerId in _requestCooldowns
-                .Where(pair => pair.Value <= DateTimeOffset.UtcNow)
-                .Select(pair => pair.Key)
-                .ToArray())
-            {
-                _requestCooldowns.Remove(expiredPlayerId);
-            }
+                foreach (var expiredPlayerId in _requestCooldowns
+                    .Where(pair => pair.Value <= DateTimeOffset.UtcNow)
+                    .Select(pair => pair.Key)
+                    .ToArray())
+                {
+                    _requestCooldowns.Remove(expiredPlayerId);
+                }
 
-            if (_requestCooldowns.TryGetValue(player.SteamID, out var cooldownUntil)
-                && cooldownUntil > DateTimeOffset.UtcNow)
-            {
-                Reply(player, "rtv.request_cooldown", Math.Ceiling((cooldownUntil - DateTimeOffset.UtcNow).TotalSeconds));
-                return;
-            }
+                if (_requestCooldowns.TryGetValue(player.SteamID, out var cooldownUntil)
+                    && cooldownUntil > DateTimeOffset.UtcNow)
+                {
+                    Reply(player, "rtv.request_cooldown", Math.Ceiling((cooldownUntil - DateTimeOffset.UtcNow).TotalSeconds));
+                    return;
+                }
 
-            _requestCooldowns[player.SteamID] = DateTimeOffset.UtcNow.AddSeconds(Math.Max(0, _settings.RequestCooldownSeconds));
-            _requests.Add(player.PlayerID);
-            requiredRequests = RequiredRequests(connectedPlayers);
-            shouldStartVote = _requests.Count >= requiredRequests;
-            if (shouldStartVote)
-            {
-                _requests.Clear();
+                _requestCooldowns[player.SteamID] = DateTimeOffset.UtcNow.AddSeconds(Math.Max(0, _settings.RequestCooldownSeconds));
+                _requests.Add(player.PlayerID);
+                requiredRequests = RequiredRequests(connectedPlayers);
+                shouldStartVote = _requests.Count >= requiredRequests;
+                if (shouldStartVote)
+                {
+                    _requests.Clear();
+                }
             }
+        }
+
+        if (reopenBallot)
+        {
+            OpenBallot(player, activeVoteGeneration);
+            return;
         }
 
         if (shouldStartVote)
@@ -273,10 +290,11 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         var localizer = Core.Translation.GetPlayerLocalizer(player);
         var builder = _menus.CreateMenu(localizer["rtv.vote.title"])
             .Id($"rtv.vote.{generation}.{player.PlayerID}")
-                        .Comment(localizer["rtv.vote", GetTotalVotes()])
+            .Comment(localizer["rtv.vote", GetTotalVotes()])
             .PageSize(5)
+            .ShowBack()
             .ShowClose()
-            .CloseOnSelect();
+            .CloseOnSelect(false);
 
         foreach (var map in _voteMaps.Values)
         {
@@ -285,10 +303,17 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
                 .Id($"map-{mapInfo.Id}")
                 .Text(mapInfo.Name)
                 .Comment(mapInfo.Kind == MapKind.Workshop ? $"Workshop ID: {mapInfo.Value}" : mapInfo.Value)
-                .OnSelected(context => CastVote(context.Player, mapInfo, generation)));
+                .OnSelected(context =>
+                {
+                    CastVote(context.Player, mapInfo, generation);
+                    if (!context.Service.Back(context.Player))
+                    {
+                        context.Service.Close(context.Player);
+                    }
+                }));
         }
 
-        var result = _menus.Open(player, builder.Build());
+        var result = _menus.OpenSubMenu(player, builder.Build());
         if (result != MenuOpenResult.Opened)
         {
             Core.Logger.LogDebug("[sws2-cs2rockthevote] Could not open ballot for player {PlayerId}: {Result}", player.PlayerID, result);
