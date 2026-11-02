@@ -20,11 +20,14 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
+
           TAGS=$(gh release list --limit 200 --json tagName --jq '.[].tagName' | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+-pr\.${PR_NUMBER}(\.[0-9]+)?$" || true)
+
           if [ -z "$TAGS" ]; then
             echo "No pre-release found for PR #${PR_NUMBER}"
             exit 0
           fi
+
           while read -r TAG; do
             echo "Deleting pre-release ${TAG}"
             gh release delete "$TAG" --cleanup-tag --yes || true

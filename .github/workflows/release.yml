@@ -10,7 +10,10 @@ on:
         required: true
         default: patch
         type: choice
-        options: [patch, minor, major]
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: read
@@ -76,10 +79,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Checkout menu contracts
-        run: git clone --depth 1 --branch main https://github.com/XBDJ504764827/sws2-cs2menus.git ../sws2-cs2menus
+        uses: actions/checkout@v4
+        with:
+          repository: XBDJ504764827/sws2-cs2menus
+          ref: main
+          path: sws2-cs2menus
 
       - name: Checkout map manager contracts
-        run: git clone --depth 1 --branch main https://github.com/XBDJ504764827/sws2-cs2mapmanager.git ../sws2-cs2mapmanager
+        uses: actions/checkout@v4
+        with:
+          repository: XBDJ504764827/sws2-cs2mapmanager
+          ref: main
+          path: sws2-cs2mapmanager
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
