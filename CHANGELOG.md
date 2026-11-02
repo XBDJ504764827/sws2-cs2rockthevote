@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Retry Steam Workshop metadata after transient network failures instead of caching the failure permanently.
+- Do not block the reservation menu while another metadata refresh is still running.
+
 ## 1.0.0
 
 - Add `!rtv` request threshold and cooldown.
