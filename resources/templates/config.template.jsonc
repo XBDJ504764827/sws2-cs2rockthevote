@@ -1,0 +1,13 @@
+{
+  "sws2-cs2rockthevote": {
+    "Enabled": true,
+    "MinimumPlayers": 4,
+    "MinimumRequests": 3,
+    "RequestRatio": 0.6,
+    "OptionCount": 5,
+    "VoteDurationSeconds": 20,
+    "RequestCooldownSeconds": 60,
+    "VoteCooldownSeconds": 180,
+    "ChangeDelaySeconds": 3
+  }
+}

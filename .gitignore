@@ -1,0 +1,12 @@
+build/
+bin/
+obj/
+*.user
+.tools/
+.vs/
+.vscode/
+.idea/
+*.zip
+*.dll
+.DS_Store
+Thumbs.db
