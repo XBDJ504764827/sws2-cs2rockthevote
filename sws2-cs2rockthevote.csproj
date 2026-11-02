@@ -64,7 +64,7 @@
     <Copy SourceFiles="@(MenuContractsTargetPath)" DestinationFolder="$(PublishDir)resources/exports" />
     <Copy SourceFiles="@(MapManagerContractsTargetPath)" DestinationFolder="$(PublishDir)" />
     <Copy SourceFiles="@(MapManagerContractsTargetPath)" DestinationFolder="$(PublishDir)resources/exports" />
-    <ZipDirectory SourceDirectory="$(PublishDir)../" DestinationFile="$(OutputPath)../$(AssemblyName).zip" Overwrite="true" />
+    <ZipDirectory SourceDirectory="$(PublishDir)../" DestinationFile="$(OutputPath)$(AssemblyName).zip" Overwrite="true" />
   </Target>
 
 </Project>

@@ -27,6 +27,7 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
     private IDisposable? _settingsSubscription;
     private Guid _rtvCommand;
     private CancellationTokenSource? _voteTimer;
+    private CancellationTokenSource? _changeTimer;
     private IMenuService? _menus;
     private IMapManagerService? _mapManager;
     private DateTimeOffset _nextVoteAllowed = DateTimeOffset.MinValue;
@@ -92,6 +93,8 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         _settingsSubscription = null;
         _voteTimer?.Cancel();
         _voteTimer = null;
+        _changeTimer?.Cancel();
+        _changeTimer = null;
         if (_mapManager is not null)
         {
             _mapManager.MapChangeProgressed -= OnMapChangeProgressed;
@@ -219,7 +222,7 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
             _votes[map.Id] = [];
         }
 
-        Broadcast("rtv.started", _settings.VoteDurationSeconds);
+        Broadcast("rtv.started", Math.Clamp(_settings.VoteDurationSeconds, 5, 120));
         _voteTimer?.Cancel();
         _voteTimer = Core.Scheduler.DelayBySeconds(Math.Clamp(_settings.VoteDurationSeconds, 5, 120), () => FinishVote(generation));
         foreach (var player in players)
@@ -316,7 +319,14 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         }
 
         Broadcast("rtv.winner", winner.Name, winningVotes, _settings.ChangeDelaySeconds);
-        Core.Scheduler.DelayBySeconds(Math.Clamp(_settings.ChangeDelaySeconds, 0, 30), () => RequestWinningMap(winner));
+        _changeTimer = Core.Scheduler.DelayBySeconds(Math.Clamp(_settings.ChangeDelaySeconds, 0, 30), () =>
+        {
+            _changeTimer = null;
+            if (_loaded)
+            {
+                RequestWinningMap(winner);
+            }
+        });
     }
 
     private void RequestWinningMap(MapInfo map)
@@ -382,9 +392,12 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         {
             _voteTimer?.Cancel();
             _voteTimer = null;
+            _changeTimer?.Cancel();
+            _changeTimer = null;
             _voteActive = false;
             _requests.Clear();
             _voters.Clear();
+            _voteMaps.Clear();
             _votes.Clear();
             _voteGeneration++;
             _nextVoteAllowed = DateTimeOffset.MinValue;
@@ -401,7 +414,10 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
 
     private int RequiredRequests(int players)
     {
-        var ratioThreshold = (int)Math.Ceiling(players * Math.Clamp(_settings.RequestRatio, 0.05, 1.0));
+        var ratio = double.IsFinite(_settings.RequestRatio)
+            ? Math.Clamp(_settings.RequestRatio, 0.05, 1.0)
+            : 0.6;
+        var ratioThreshold = (int)Math.Ceiling(players * ratio);
         return Math.Clamp(Math.Max(Math.Max(1, _settings.MinimumRequests), ratioThreshold), 1, players);
     }
 
