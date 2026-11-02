@@ -63,6 +63,11 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
 
     public override void UseSharedInterface(IInterfaceManager interfaceManager)
     {
+        if (_mapManager is not null)
+        {
+            _mapManager.MapChangeProgressed -= OnMapChangeProgressed;
+        }
+
         _menus = interfaceManager.TryGetSharedInterface<IMenuService>(MenuServiceConstants.InterfaceKey, out var menus)
             ? menus
             : null;
@@ -233,7 +238,7 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         var localizer = Core.Translation.GetPlayerLocalizer(player);
         var builder = _menus.CreateMenu(localizer["rtv.vote.title"])
             .Id($"rtv.vote.{generation}.{player.PlayerID}")
-            .Comment(localizer["rtv.vote.comment", _votes.Values.Sum(voters => voters.Count)])
+                        .Comment(localizer["rtv.vote", GetTotalVotes()])
             .PageSize(5)
             .ShowClose()
             .CloseOnSelect();
@@ -284,7 +289,7 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         int winningVotes;
         lock (_sync)
         {
-            if (!_voteActive || generation != _voteGeneration)
+            if (!_loaded || !_voteActive || generation != _voteGeneration)
             {
                 return;
             }
@@ -405,6 +410,14 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         lock (_sync)
         {
             return _requests.Count;
+        }
+    }
+
+    private int GetTotalVotes()
+    {
+        lock (_sync)
+        {
+            return _votes.Values.Sum(voters => voters.Count);
         }
     }
 
