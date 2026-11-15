@@ -13,7 +13,7 @@ Load the shared menu and map manager plugins before this plugin.
 
 ## How it works
 
-1. Any player can use `!yd` to open the map reservation menu. The menu shows the Workshop preview, title and creator when Steam metadata is available.
+1. Any player can use `!yd` to open the map reservation menu. The menu opens immediately with configured map names and cached Workshop title/creator details when available.
 2. `!yd <map name>` reserves a map directly. The reservation is announced in chat and a later reservation replaces it.
 3. Players use `!rtv` to agree to the reserved map. If nobody has reserved one, the next map in mapmanager's configured order is selected.
 4. One player is enough on a one-player server; two players are required when there are two; two are required when there are three; servers with four or more players require at least 80% of connected human players. Each player counts once.
@@ -27,14 +27,31 @@ Edit `configs/plugins/sws2-cs2rockthevote/config.jsonc`:
 {
   "sws2-cs2rockthevote": {
     "Enabled": true,
-    "ChangeDelaySeconds": 3
+    "ChangeDelaySeconds": 3,
+    "WorkshopMetadata": {
+      "Enabled": true,
+      "TimeoutSeconds": 30
+    }
   }
 }
 ```
 
-Map names and Workshop IDs are configured only in `sws2-cs2mapmanager`. Workshop titles, creators and preview images are read from Steam when a player opens `!yd`; chat reservation and RTV commands work if that metadata request is unavailable. Temporary Steam metadata failures are retried later, and the reservation menu does not wait indefinitely for an in-flight refresh. Changes are hot-reloaded.
+`WorkshopMetadata.Enabled` controls optional Steam HTTP lookups. Set it to `false`
+on servers without reliable access to `api.steampowered.com` / `steamcommunity.com`;
+map reservations, RTV and mapmanager downloads do not depend on these lookups.
+`TimeoutSeconds` applies to each request (1-120 seconds, default 30). Both settings
+are hot-reloaded and take effect on subsequent requests; an existing request may
+continue until its deadline.
 
-Workshop thumbnails are rendered by the `hudlayout` menu backend. The classic menu fallback still shows the map title and author text.
+Map names and Workshop IDs are configured only in `sws2-cs2mapmanager`. Steam details are fetched in the background on startup and when a player opens
+`!yd`. The menu uses a cached snapshot immediately; reopen it after a successful
+fetch to see updated details. A network failure emits one concise warning,
+stops remaining batches and waits five minutes before allowing another refresh
+on a later request. Maps already fetched remain cached. Changes are hot-reloaded.
+
+Preview URLs remain available through the menu contract for renderers that support
+them. The current Custom HUD uses local icons because custom layouts restrict the
+supported panel types; titles and authors are shown as text.
 
 ## Build
 
@@ -47,6 +64,15 @@ dotnet publish sws2-cs2rockthevote.csproj -c Release --no-restore
 ```
 
 Pull requests and `develop` pushes build downloadable test packages. Merging to `main` builds a versioned package and publishes a GitHub Release; dispatching the release workflow allows choosing patch, minor, or major.
+
+## Metadata regression checks
+
+The checks simulate the nested timeout reported by HttpClient, a stalled request,
+plugin shutdown, cached responses and disabled lookups without contacting Steam:
+
+```sh
+dotnet run --project tests/MetadataChecks/MetadataChecks.csproj -c Release
+```
 
 ## Versioning and releases
 

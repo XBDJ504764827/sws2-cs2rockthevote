@@ -2,8 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- Hot-reloadable Workshop metadata enable switch and per-request timeout (default 30 seconds).
+- Deterministic HTTP regression checks for nested timeouts, cancellation, caching and offline mode.
+
 ### Fixed
 
+- Recognize network failures across the entire exception chain, including timeouts ending in a disposed NetworkStream, and log a concise warning.
+- Open reservation menus immediately from configured maps/cached details while refreshing Steam data in the background.
+- Stop remaining detail batches after a Steam request fails instead of repeating the same timeout.
 - Retry Steam Workshop metadata after transient network failures instead of caching the failure permanently.
 - Do not block the reservation menu while another metadata refresh is still running.
 

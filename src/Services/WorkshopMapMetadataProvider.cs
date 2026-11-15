@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 using Sws2Cs2MapManager.Contracts;
+using Sws2Cs2RockTheVote.Configuration;
 
 namespace Sws2Cs2RockTheVote.Services;
 
@@ -17,28 +18,50 @@ internal sealed class WorkshopMapMetadataProvider : IDisposable
     private static readonly WorkshopMapMetadata EmptyMetadata = new(null, null, null);
 
     private readonly ILogger _logger;
-    private readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(8) };
+    private readonly HttpClient _httpClient;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private readonly object _sync = new();
     private readonly Dictionary<string, WorkshopMapMetadata> _metadata = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string?> _authors = new(StringComparer.Ordinal);
     private DateTimeOffset _retryAfterUtc;
+    private volatile WorkshopMetadataSettings _settings;
 
-    public WorkshopMapMetadataProvider(ILogger logger)
+    public WorkshopMapMetadataProvider(
+        ILogger logger,
+        WorkshopMetadataSettings settings,
+        HttpMessageHandler? handler = null)
     {
         _logger = logger;
+        _settings = settings;
+        _httpClient = handler is null ? new HttpClient() : new HttpClient(handler);
+        _httpClient.Timeout = Timeout.InfiniteTimeSpan;
         _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "sws2-cs2rockthevote/1.0");
+    }
+
+    public void ApplySettings(WorkshopMetadataSettings settings) => _settings = settings;
+
+    public IReadOnlyDictionary<string, WorkshopMapMetadata> GetCached(IEnumerable<MapInfo> maps)
+    {
+        return Snapshot(GetWorkshopIds(maps));
+    }
+
+    private static string[] GetWorkshopIds(IEnumerable<MapInfo> maps)
+    {
+        return maps.Where(map => map.Kind == MapKind.Workshop)
+            .Select(map => map.Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
     }
 
     public async Task<IReadOnlyDictionary<string, WorkshopMapMetadata>> GetAsync(
         IEnumerable<MapInfo> maps,
         CancellationToken cancellationToken = default)
     {
-        var ids = maps
-            .Where(map => map.Kind == MapKind.Workshop)
-            .Select(map => map.Value)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        var ids = GetWorkshopIds(maps);
+        if (!_settings.Enabled || ids.Length == 0)
+        {
+            return Snapshot(ids);
+        }
 
         var lockTaken = await _refreshLock.WaitAsync(RefreshLockWait, cancellationToken);
         if (!lockTaken)
@@ -55,7 +78,7 @@ internal sealed class WorkshopMapMetadataProvider : IDisposable
             lock (_sync)
             {
                 missing = ids.Where(id => !_metadata.ContainsKey(id)).ToArray();
-                shouldRefresh = missing.Length > 0 && DateTimeOffset.UtcNow >= _retryAfterUtc;
+                shouldRefresh = _settings.Enabled && missing.Length > 0 && DateTimeOffset.UtcNow >= _retryAfterUtc;
             }
 
             if (shouldRefresh)
@@ -91,21 +114,27 @@ internal sealed class WorkshopMapMetadataProvider : IDisposable
     {
         foreach (var batch in ids.Chunk(100))
         {
+            if (!_settings.Enabled)
+            {
+                return;
+            }
+
             try
             {
+                using var requestTimeout = CreateRequestTimeout(cancellationToken);
                 using var content = new FormUrlEncodedContent(
                     new[] { new KeyValuePair<string, string>("itemcount", batch.Length.ToString()) }
                         .Concat(batch.Select((id, index) =>
                             new KeyValuePair<string, string>($"publishedfileids[{index}]", id))));
-                using var response = await _httpClient.PostAsync(DetailsEndpoint, content, cancellationToken);
+                using var response = await _httpClient.PostAsync(DetailsEndpoint, content, requestTimeout.Token);
                 response.EnsureSuccessStatusCode();
-                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                await using var stream = await response.Content.ReadAsStreamAsync(requestTimeout.Token);
+                using var document = await JsonDocument.ParseAsync(stream, cancellationToken: requestTimeout.Token);
                 if (!TryGetProperty(document.RootElement, "response", out var responseElement)
                     || !TryGetProperty(responseElement, "publishedfiledetails", out var details)
                     || details.ValueKind != JsonValueKind.Array)
                 {
-                    continue;
+                    throw new JsonException("Steam response does not contain publishedfiledetails.");
                 }
 
                 var entries = new List<(string Id, string? Title, string? Creator, string? ImageUrl)>();
@@ -189,17 +218,19 @@ internal sealed class WorkshopMapMetadataProvider : IDisposable
                     _retryAfterUtc = DateTimeOffset.UtcNow + RefreshRetryDelay;
                 }
 
-                var root = exception.GetBaseException();
-                if (root is HttpRequestException or TimeoutException or TaskCanceledException or IOException)
+                if (IsNetworkFailure(exception))
                 {
                     _logger.LogWarning(
-                        "[sws2-cs2rockthevote] Steam Workshop metadata is temporarily unavailable: {Message}",
-                        root.Message);
+                        "[sws2-cs2rockthevote] Steam Workshop details unavailable ({Reason}). Using configured maps/cached details; voting and map changes remain available. Retrying on a later request after 5 minutes.",
+                        exception is OperationCanceledException ? "request timed out" : exception.Message);
                 }
                 else
                 {
                     _logger.LogWarning(exception, "[sws2-cs2rockthevote] Failed to load Workshop map details");
                 }
+
+                // Steam is unavailable. Do not repeat the timeout for every remaining batch.
+                return;
             }
         }
     }
@@ -208,11 +239,17 @@ internal sealed class WorkshopMapMetadataProvider : IDisposable
     {
         try
         {
+            if (!_settings.Enabled)
+            {
+                return null;
+            }
+
+            using var requestTimeout = CreateRequestTimeout(cancellationToken);
             var url = $"https://steamcommunity.com/profiles/{Uri.EscapeDataString(steamId)}/?xml=1";
-            using var response = await _httpClient.GetAsync(url, cancellationToken);
+            using var response = await _httpClient.GetAsync(url, requestTimeout.Token);
             response.EnsureSuccessStatusCode();
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            var document = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
+            await using var stream = await response.Content.ReadAsStreamAsync(requestTimeout.Token);
+            var document = await XDocument.LoadAsync(stream, LoadOptions.None, requestTimeout.Token);
             return document.Descendants()
                 .FirstOrDefault(element => element.Name.LocalName.Equals("steamID", StringComparison.OrdinalIgnoreCase))
                 ?.Value.Trim();
@@ -226,6 +263,28 @@ internal sealed class WorkshopMapMetadataProvider : IDisposable
             _logger.LogDebug(exception, "[sws2-cs2rockthevote] Failed to resolve Workshop creator {SteamId}", steamId);
             return null;
         }
+    }
+
+    private CancellationTokenSource CreateRequestTimeout(CancellationToken cancellationToken)
+    {
+        var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(_settings.TimeoutSeconds, 1, 120)));
+        return timeout;
+    }
+
+    private static bool IsNetworkFailure(Exception exception)
+    {
+        // HttpClient timeouts can end in ObjectDisposedException inside SslStream.
+        // Inspect the entire chain so a transport shutdown is not treated as an unknown error.
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is HttpRequestException or TimeoutException or OperationCanceledException or IOException)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string? ReadString(JsonElement element, string propertyName)

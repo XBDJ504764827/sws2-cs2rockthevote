@@ -56,7 +56,7 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         _settingsSubscription = options.OnChange(settings => Core.Scheduler.NextTick(() => ApplySettings(settings)));
 
         _metadataShutdown = new CancellationTokenSource();
-        _metadataProvider = new WorkshopMapMetadataProvider(Core.Logger);
+        _metadataProvider = new WorkshopMapMetadataProvider(Core.Logger, _settings.WorkshopMetadata);
         _rtvCommand = Core.Command.RegisterCommand(
             "rtv",
             OnRtvCommand,
@@ -128,6 +128,7 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
     private void ApplySettings(RockTheVoteSettings settings)
     {
         _settings = settings;
+        _metadataProvider?.ApplySettings(settings.WorkshopMetadata);
         Core.Logger.LogInformation("[sws2-cs2rockthevote] Configuration reloaded");
     }
 
@@ -196,43 +197,12 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
             return;
         }
 
-        _ = OpenReservationMenuAsync(player, maps.ToArray());
-    }
-
-    private async Task OpenReservationMenuAsync(IPlayer player, IReadOnlyList<MapInfo> maps)
-    {
-        IReadOnlyDictionary<string, WorkshopMapMetadata> metadata =
-            new Dictionary<string, WorkshopMapMetadata>(StringComparer.Ordinal);
-        try
-        {
-            if (_metadataProvider is not null && _metadataShutdown is not null)
-            {
-                metadata = await _metadataProvider.GetAsync(maps, _metadataShutdown.Token);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-        catch (Exception exception)
-        {
-            Core.Logger.LogWarning(exception, "[sws2-cs2rockthevote] Failed to load map menu metadata");
-        }
-
-        if (!_loaded)
-        {
-            return;
-        }
-
-        Core.Scheduler.NextTick(() =>
-        {
-            if (!_loaded || !player.IsValid || _menus is not { IsAvailable: true })
-            {
-                return;
-            }
-
-            OpenReservationMenu(player, maps, metadata);
-        });
+        // Steam details are optional. Never delay opening the menu for a network request.
+        var configuredMaps = maps.ToArray();
+        var metadata = _metadataProvider?.GetCached(configuredMaps)
+            ?? new Dictionary<string, WorkshopMapMetadata>(StringComparer.Ordinal);
+        OpenReservationMenu(player, configuredMaps, metadata);
+        _ = WarmWorkshopMetadataAsync(configuredMaps);
     }
 
     private void OpenReservationMenu(

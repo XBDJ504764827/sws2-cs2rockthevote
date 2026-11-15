@@ -1,6 +1,11 @@
 {
   "sws2-cs2rockthevote": {
     "Enabled": true,
-    "ChangeDelaySeconds": 3
+    "ChangeDelaySeconds": 3,
+    // Optional Steam details; map reservations and changes work when disabled.
+    "WorkshopMetadata": {
+      "Enabled": true,
+      "TimeoutSeconds": 30
+    }
   }
 }
