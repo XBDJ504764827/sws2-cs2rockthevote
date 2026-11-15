@@ -19,5 +19,6 @@
   "rtv.download_started": "正在下载工坊地图{0}，完成后服务器将自动切换。",
   "rtv.download_pending": "工坊地图{0}已在下载中。",
   "rtv.map_change_busy": "地图切换失败：已有另一个地图切换正在进行。",
-  "rtv.map_change_failed": "地图切换失败：{0}。"
+  "rtv.map_change_failed": "地图切换失败：{0}。",
+  "rtv.reserve.help": "点击地图即可预定。预定后，玩家使用 !rtv 同意换图。"
 }

@@ -220,7 +220,9 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         var localizer = Core.Translation.GetPlayerLocalizer(player);
         var builder = menus.CreateMenu(localizer["rtv.reserve.title"])
             .Id($"rtv.reserve.{player.PlayerID}.{Guid.NewGuid():N}")
-            .PageSize(5)
+            .Layout(MenuLayout.MapPicker)
+            .Comment(localizer["rtv.reserve.help"])
+            .PageSize(4)
             .ShowBack(false)
             .ShowClose()
             .CloseOnSelect();
@@ -237,6 +239,7 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
                 .Text(selectedMap.Name)
                 .Comment(localizer["rtv.map_details", author, details?.Title ?? selectedMap.Name])
                 .Image(details?.ImageUrl)
+                .Tag(new MapMenuOptionAppearance(selectedMap.CkzTier, selectedMap.VnlTier, selectedMap.Id))
                 .OnSelected(context =>
                 {
                     ReserveMap(context.Player, selectedMap);
@@ -253,6 +256,12 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
 
     private bool ReserveMap(IPlayer player, MapInfo requestedMap)
     {
+        if (!_settings.Enabled)
+        {
+            Reply(player, "rtv.disabled");
+            return false;
+        }
+
         var map = _mapManager?.GetMaps().FirstOrDefault(candidate =>
             candidate.Id.Equals(requestedMap.Id, StringComparison.OrdinalIgnoreCase));
         if (map is null)

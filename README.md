@@ -13,7 +13,7 @@ Load the shared menu and map manager plugins before this plugin.
 
 ## How it works
 
-1. Any player can use `!yd` to open the map reservation menu. The menu opens immediately with configured map names and cached Workshop title/creator details when available.
+1. Any player can use `!yd` to open the map reservation menu. The Custom HUD opens immediately with map names, separate CKZ/VNL tier badges, packaged map previews and cached Workshop title/creator details when available. Four maps fit on each page; clicking a map reserves it and closes the menu.
 2. `!yd <map name>` reserves a map directly. The reservation is announced in chat and a later reservation replaces it.
 3. Players use `!rtv` to agree to the reserved map. If nobody has reserved one, the next map in mapmanager's configured order is selected.
 4. One player is enough on a one-player server; two players are required when there are two; two are required when there are three; servers with four or more players require at least 80% of connected human players. Each player counts once.
@@ -49,9 +49,23 @@ fetch to see updated details. A network failure emits one concise warning,
 stops remaining batches and waits five minutes before allowing another refresh
 on a later request. Maps already fetched remain cached. Changes are hot-reloaded.
 
-Preview URLs remain available through the menu contract for renderers that support
-them. The current Custom HUD uses local icons because custom layouts restrict the
-supported panel types; titles and authors are shown as text.
+CKZ and VNL ratings come exclusively from mapmanager's shared `MapInfo.CkzTier` / `MapInfo.VnlTier` fields. Configure `"CKZ": null, "VNL": null` inside each map object and replace `null` with the real rating when known. Each unknown mode is labeled independently. The admin map list uses the same fields.
+
+The HUD must be enabled in `sws2-cs2menus` (`Menu.Backend: "hudlayout"`, or `"auto"` with the addon mounted). The classic fallback still provides map reservations when the HUD resources are unavailable.
+
+### Map pictures
+
+Custom HUD layouts accept Panel/Label/Button, so map pictures use **local CSS backgrounds**, not remote Image panels or client JavaScript. The HUD source already contains real Workshop previews for the 15 requested maps. Missing pictures show a localized placeholder and never block reservations. The administrator panel stays text-only.
+
+To regenerate pictures for your actual catalog, run from the sibling menus repository:
+
+```sh
+python3 tools/build_map_thumbnails.py --config /path/to/mapmanager/config.jsonc
+```
+
+Then compile the updated XML, CSS and images from `sws2-cs2menus/workshop/` in CS2 Workshop Tools and replace your locally mounted addon or update the Workshop addon. Both server and clients need the compiled resources. Ratings are server configuration and do not require republishing resources.
+
+The tool supports `--offline` and `--images images.json` for local screenshots. See [the HUD addon instructions](../sws2-cs2menus/workshop/README.md#map-reservation-pictures). Runtime Steam metadata remains optional and is refreshed separately; it does not dynamically replace packaged screenshots.
 
 ## Build
 

@@ -19,5 +19,6 @@
   "rtv.download_started": "Downloading Workshop map {0}; the server will change when it is ready.",
   "rtv.download_pending": "The Workshop map {0} is already downloading.",
   "rtv.map_change_busy": "Map change failed: another map change is already in progress.",
-  "rtv.map_change_failed": "Map change failed: {0}."
+  "rtv.map_change_failed": "Map change failed: {0}.",
+  "rtv.reserve.help": "Select a map to reserve it. Players can then use !rtv to agree to the change."
 }

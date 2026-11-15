@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Reservation HUD
+
+- Use the map picker HUD for !yd with configured map names, independent CKZ/VNL ratings and optional packaged screenshots; preserve direct-name reservations.
+- Read ratings from mapmanager's shared catalog, show unknown values separately and open immediately without waiting for Steam.
+- Recheck whether reservations are enabled when a player clicks an already open menu.
+
 ### Added
 
 - Hot-reloadable Workshop metadata enable switch and per-request timeout (default 30 seconds).
