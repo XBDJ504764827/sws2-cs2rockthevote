@@ -239,7 +239,8 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
                 .Text(selectedMap.Name)
                 .Comment(localizer["rtv.map_details", author, details?.Title ?? selectedMap.Name])
                 .Image(details?.ImageUrl)
-                .Tag(new MapMenuOptionAppearance(selectedMap.CkzTier, selectedMap.VnlTier, selectedMap.Id))
+                .Tag(new MapMenuOptionAppearance(selectedMap.CkzNubTier, selectedMap.CkzProTier,
+                    selectedMap.VnlNubTier, selectedMap.VnlProTier, selectedMap.Id))
                 .OnSelected(context =>
                 {
                     ReserveMap(context.Player, selectedMap);

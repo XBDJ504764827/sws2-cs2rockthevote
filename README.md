@@ -13,7 +13,7 @@ Load the shared menu and map manager plugins before this plugin.
 
 ## How it works
 
-1. Any player can use `!yd` to open the map reservation menu. The Custom HUD opens immediately with map names, separate CKZ/VNL tier badges, packaged map previews and cached Workshop title/creator details when available. Four maps fit on each page; clicking a map reserves it and closes the menu.
+1. Any player can use `!yd` to open the map reservation menu. The Custom HUD opens immediately with map names, separate CKZ NUB/PRO and VNL NUB/PRO tier badges, packaged map previews and cached Workshop title/creator details when available. Four maps fit on each page; clicking a map reserves it and closes the menu.
 2. `!yd <map name>` reserves a map directly. The reservation is announced in chat and a later reservation replaces it.
 3. Players use `!rtv` to agree to the reserved map. If nobody has reserved one, the next map in mapmanager's configured order is selected.
 4. One player is enough on a one-player server; two players are required when there are two; two are required when there are three; servers with four or more players require at least 80% of connected human players. Each player counts once.
@@ -49,7 +49,7 @@ fetch to see updated details. A network failure emits one concise warning,
 stops remaining batches and waits five minutes before allowing another refresh
 on a later request. Maps already fetched remain cached. Changes are hot-reloaded.
 
-CKZ and VNL ratings come exclusively from mapmanager's shared `MapInfo.CkzTier` / `MapInfo.VnlTier` fields. Configure `"CKZ": null, "VNL": null` inside each map object and replace `null` with the real rating when known. Each unknown mode is labeled independently. The admin map list uses the same fields.
+All four ratings come from mapmanager's shared `MapInfo.CkzNubTier`, `CkzProTier`, `VnlNubTier` and `VnlProTier` fields. Configure `"CKZ": {"NUB": null, "PRO": null}` and `"VNL": {"NUB": null, "PRO": null}` inside each map object. Replace each `null` with the actual category rating. NUB means checkpoints (存点); PRO means no checkpoints (裸跳). Unknown categories are labeled separately and never borrow ratings from another category or from old scalar mode ratings. The admin map list uses the same four fields.
 
 The HUD must be enabled in `sws2-cs2menus` (`Menu.Backend: "hudlayout"`, or `"auto"` with the addon mounted). The classic fallback still provides map reservations when the HUD resources are unavailable.
 

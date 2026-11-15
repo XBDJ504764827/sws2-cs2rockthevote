@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### NUB / PRO ratings
+
+- Read CKZ NUB, CKZ PRO, VNL NUB and VNL PRO separately from the shared map catalog for the reservation HUD.
+
 ### Reservation HUD
 
 - Use the map picker HUD for !yd with configured map names, independent CKZ/VNL ratings and optional packaged screenshots; preserve direct-name reservations.
