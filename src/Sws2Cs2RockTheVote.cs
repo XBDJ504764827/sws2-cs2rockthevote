@@ -24,14 +24,12 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
     private IDisposable? _settingsSubscription;
     private Guid _rtvCommand;
     private Guid _ydCommand;
-    private CancellationTokenSource? _changeTimer;
     private CancellationTokenSource? _metadataShutdown;
     private WorkshopMapMetadataProvider? _metadataProvider;
     private IMenuService? _menus;
     private IMapManagerService? _mapManager;
     private MapInfo? _reservedMap;
     private MapInfo? _rtvTarget;
-    private int _changeGeneration;
     private bool _changePending;
     private bool _loaded;
 
@@ -78,22 +76,31 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
 
     public override void UseSharedInterface(IInterfaceManager interfaceManager)
     {
+        var nextMapManager = interfaceManager.TryGetSharedInterface<IMapManagerService>(IMapManagerService.InterfaceKey, out var maps)
+            ? maps
+            : null;
+        if (!ReferenceEquals(_mapManager, nextMapManager))
+        {
+            CancelOwnedChange();
+            ResetRtvVotes();
+        }
         if (_mapManager is not null)
         {
             _mapManager.MapChangeProgressed -= OnMapChangeProgressed;
+            _mapManager.MapChangeControlChanged -= OnMapChangeControlChanged;
         }
 
         _menus = interfaceManager.TryGetSharedInterface<IMenuService>(MenuServiceConstants.InterfaceKey, out var menus)
             ? menus
             : null;
-        _mapManager = interfaceManager.TryGetSharedInterface<IMapManagerService>(IMapManagerService.InterfaceKey, out var maps)
-            ? maps
-            : null;
+        _mapManager = nextMapManager;
 
         if (_mapManager is not null)
         {
             _mapManager.MapChangeProgressed -= OnMapChangeProgressed;
+            _mapManager.MapChangeControlChanged -= OnMapChangeControlChanged;
             _mapManager.MapChangeProgressed += OnMapChangeProgressed;
+            _mapManager.MapChangeControlChanged += OnMapChangeControlChanged;
             _ = WarmWorkshopMetadataAsync(_mapManager.GetMaps());
         }
     }
@@ -112,11 +119,11 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         _metadataShutdown = null;
         _metadataProvider?.Dispose();
         _metadataProvider = null;
-        _changeTimer?.Cancel();
-        _changeTimer = null;
         if (_mapManager is not null)
         {
+            CancelOwnedChange();
             _mapManager.MapChangeProgressed -= OnMapChangeProgressed;
+            _mapManager.MapChangeControlChanged -= OnMapChangeControlChanged;
         }
 
         _mapManager = null;
@@ -127,7 +134,13 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
 
     private void ApplySettings(RockTheVoteSettings settings)
     {
+        if (!_loaded) return;
         _settings = settings;
+        if (!settings.Enabled)
+        {
+            CancelOwnedChange();
+            ResetRtvVotes();
+        }
         _metadataProvider?.ApplySettings(settings.WorkshopMetadata);
         Core.Logger.LogInformation("[sws2-cs2rockthevote] Configuration reloaded");
     }
@@ -273,18 +286,10 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
 
         lock (_sync)
         {
-            if (_changePending && _changeTimer is null)
+            if (_changePending)
             {
                 Reply(player, "rtv.change_underway");
                 return false;
-            }
-
-            if (_changeTimer is not null)
-            {
-                _changeTimer.Cancel();
-                _changeTimer = null;
-                _changeGeneration++;
-                _changePending = false;
             }
 
             _reservedMap = map;
@@ -316,6 +321,19 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
             return;
         }
 
+        var changeState = mapManager.GetChangeState();
+        if (changeState.IsPaused)
+        {
+            Reply(player, "rtv.map_changes_paused");
+            return;
+        }
+
+        if (changeState.PendingMap is not null)
+        {
+            Reply(player, "rtv.change_underway");
+            return;
+        }
+
         var maps = mapManager.GetMaps();
         if (maps.Count == 0)
         {
@@ -332,7 +350,6 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
         var nextMap = FindNextMap(maps);
         int votes;
         int requiredVotes;
-        int generation = 0;
         MapInfo? target;
         bool shouldChange = false;
         lock (_sync)
@@ -382,7 +399,6 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
             if (votes >= requiredVotes)
             {
                 _changePending = true;
-                generation = ++_changeGeneration;
                 shouldChange = true;
             }
         }
@@ -393,73 +409,39 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
             return;
         }
 
-        var delay = Math.Clamp(_settings.ChangeDelaySeconds, 0, 30);
-        Broadcast("rtv.quorum", target.Name, delay);
-        _changeTimer = Core.Scheduler.DelayBySeconds(delay, () => CompleteRtvChange(target, generation));
-    }
-
-    private void CompleteRtvChange(MapInfo map, int generation)
-    {
-        lock (_sync)
+        var delay = Math.Clamp(_settings.ChangeDelaySeconds, 5, 30);
+        var result = mapManager.ScheduleChange(target.Id, delay, "rtv");
+        if (result.Status is not (MapChangeRequestStatus.Scheduled or MapChangeRequestStatus.ChangeStarted
+            or MapChangeRequestStatus.DownloadStarted or MapChangeRequestStatus.DownloadAlreadyPending))
         {
-            if (!_loaded || !_changePending || generation != _changeGeneration)
-            {
-                return;
-            }
-
-            _changeTimer = null;
+            if (result.Status == MapChangeRequestStatus.Paused) Broadcast("rtv.map_changes_paused");
+            else if (result.Status == MapChangeRequestStatus.Busy) Broadcast("rtv.map_change_busy");
+            else if (result.Status == MapChangeRequestStatus.MapNotFound) Broadcast("rtv.map_not_found", target.Name);
+            // Other failures are reported through MapChangeProgressed.
+            ResetRtvVotes();
         }
-
-        var mapManager = _mapManager;
-        if (mapManager is null)
+        else
         {
-            Broadcast("rtv.unavailable");
-            ResetChangeAttempt(generation);
-            return;
-        }
-
-        var result = mapManager.RequestChange(map.Id);
-        if (result.Status == MapChangeRequestStatus.DownloadAlreadyPending)
-        {
-            Broadcast("rtv.download_pending", map.Name);
-            return;
-        }
-
-        var accepted = result.Status is MapChangeRequestStatus.ChangeStarted or MapChangeRequestStatus.DownloadStarted;
-        if (!accepted)
-        {
-            switch (result.Status)
-            {
-                case MapChangeRequestStatus.Busy:
-                    Broadcast("rtv.map_change_busy");
-                    break;
-                case MapChangeRequestStatus.MapNotFound:
-                    Broadcast("rtv.map_not_found", map.Name);
-                    break;
-                default:
-                    Broadcast("rtv.map_change_failed", result.Error ?? map.Name);
-                    break;
-            }
-
-            ResetChangeAttempt(generation);
+            Broadcast("rtv.quorum", target.Name, delay);
         }
     }
 
-    private void ResetChangeAttempt(int generation)
+    private void CancelOwnedChange()
+    {
+        if (_mapManager?.GetChangeState().Source == "rtv") _mapManager.CancelPendingChange();
+    }
+
+    private void ResetRtvVotes()
     {
         lock (_sync)
         {
-            if (generation != _changeGeneration)
-            {
-                return;
-            }
-
             _changePending = false;
-            _changeTimer = null;
             _rtvVotes.Clear();
             _rtvTarget = _reservedMap;
         }
     }
+
+    private void OnMapChangeControlChanged(object? sender, EventArgs args) => ResetRtvVotes();
 
     private void OnMapChangeProgressed(object? sender, MapChangeProgressEventArgs args)
     {
@@ -471,14 +453,13 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
             _ => (null, null)
         };
 
-        if (args.Progress == MapChangeProgress.Failed)
+        if (args.Progress is MapChangeProgress.Failed or MapChangeProgress.Cancelled)
         {
             lock (_sync)
             {
                 if (_changePending)
                 {
                     _changePending = false;
-                    _changeTimer = null;
                     _rtvVotes.Clear();
                     _rtvTarget = _reservedMap;
                 }
@@ -503,10 +484,7 @@ public partial class Sws2Cs2RockTheVote : BasePlugin
     {
         lock (_sync)
         {
-            _changeTimer?.Cancel();
-            _changeTimer = null;
             _changePending = false;
-            _changeGeneration++;
             _reservedMap = null;
             _rtvTarget = null;
             _rtvVotes.Clear();

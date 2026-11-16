@@ -5,8 +5,8 @@ public sealed class RockTheVoteSettings
 {
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Delay after enough players agree before mapmanager is asked to change maps.</summary>
-    public int ChangeDelaySeconds { get; set; } = 3;
+    /// <summary>Countdown after quorum before changing maps or starting a missing-map download; clamped to 5–30 seconds.</summary>
+    public int ChangeDelaySeconds { get; set; } = 5;
 
     /// <summary>Optional Steam title, author and preview lookups. Never required for voting.</summary>
     public WorkshopMetadataSettings WorkshopMetadata { get; set; } = new();

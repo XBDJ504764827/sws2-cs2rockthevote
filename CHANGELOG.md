@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Administrator map control
+
+- Use a 5-second default/minimum RTV countdown, including existing configurations still set to 3. Start missing-map downloads only after the countdown.
+
+- Schedule countdowns through mapmanager so admins can cancel or pause them immediately. Clear votes on control changes while retaining the reservation.
+- Reject new votes while paused or another change is pending; cancel RTV-owned work on disable/unload.
+
 ### NUB / PRO ratings
 
 - Read CKZ NUB, CKZ PRO, VNL NUB and VNL PRO separately from the shared map catalog for the reservation HUD.

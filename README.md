@@ -17,7 +17,7 @@ Load the shared menu and map manager plugins before this plugin.
 2. `!yd <map name>` reserves a map directly. The reservation is announced in chat and a later reservation replaces it.
 3. Players use `!rtv` to agree to the reserved map. If nobody has reserved one, the next map in mapmanager's configured order is selected.
 4. One player is enough on a one-player server; two players are required when there are two; two are required when there are three; servers with four or more players require at least 80% of connected human players. Each player counts once.
-5. Once the threshold is reached, the map is passed to `sws2-cs2mapmanager` after `ChangeDelaySeconds`. Disconnecting removes that player's agreement.
+5. Once the threshold is reached, `sws2-cs2mapmanager` owns the `ChangeDelaySeconds` countdown before changing maps or starting a required download. Disconnecting removes that player's agreement.
 
 ## Configuration
 
@@ -27,7 +27,7 @@ Edit `configs/plugins/sws2-cs2rockthevote/config.jsonc`:
 {
   "sws2-cs2rockthevote": {
     "Enabled": true,
-    "ChangeDelaySeconds": 3,
+    "ChangeDelaySeconds": 5,
     "WorkshopMetadata": {
       "Enabled": true,
       "TimeoutSeconds": 30
@@ -55,7 +55,7 @@ The HUD must be enabled in `sws2-cs2menus` (`Menu.Backend: "hudlayout"`, or `"au
 
 ### Map pictures
 
-Custom HUD layouts accept Panel/Label/Button, so map pictures use **local CSS backgrounds**, not remote Image panels or client JavaScript. The HUD source already contains real Workshop previews for the 15 requested maps. Missing pictures show a localized placeholder and never block reservations. The administrator panel stays text-only.
+Custom HUD layouts accept Panel/Label/Button, so map pictures use **local CSS backgrounds**, not remote Image panels or client JavaScript. The HUD source already contains real Workshop previews for the 15 requested maps. Missing pictures show a localized placeholder and never block reservations. Administrator Map management uses the same screenshot assets and four rating badges through the shared MapPicker renderer.
 
 To regenerate pictures for your actual catalog, run from the sibling menus repository:
 
@@ -99,3 +99,11 @@ This repository uses a `develop` -> `main` flow:
 - A manual release can be started with `workflow_dispatch` and a `patch`, `minor` or `major` bump.
 
 No manual version editing is required. The value committed in `src/VersionInfo.cs` is only a fallback for local builds.
+
+## Administrator map control
+
+RTV countdowns now belong to the shared map manager. Administrator **Cancel pending change now** clears existing votes and cancels the pending switch, including a switch waiting for a Workshop download. **Pause map changes now** also rejects new RTV requests. Resuming requires fresh votes; the reserved map is retained. Turning RTV off or unloading it cancels only its own pending request. Pause resets on map unload/restart.
+
+Install matching mapmanager, menus, admin and rockthevote packages together and restart the server. No new RTV configuration fields are needed.
+
+RTV uses a **5-second** countdown by default. `ChangeDelaySeconds` is clamped to 5–30 seconds, so an existing setting of 3 automatically runs as 5 without regenerating configuration. Administrator panel changes use a separate **3-second** countdown. At the deadline, an installed map changes immediately; a missing Workshop map begins downloading immediately and switches only after download completion. Both the countdown and automatic switch after download remain cancellable.

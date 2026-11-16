@@ -1,7 +1,8 @@
 {
   "sws2-cs2rockthevote": {
     "Enabled": true,
-    "ChangeDelaySeconds": 3,
+    // RTV countdown: minimum 5 seconds, maximum 30 seconds.
+    "ChangeDelaySeconds": 5,
     // Optional Steam details; map reservations and changes work when disabled.
     "WorkshopMetadata": {
       "Enabled": true,
