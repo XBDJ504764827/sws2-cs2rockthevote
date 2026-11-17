@@ -104,6 +104,11 @@ jobs:
           VERSION: ${{ needs.version.outputs.version }}
         run: dotnet build sws2-cs2rockthevote.csproj -c Release --no-restore -warnaserror -p:Version="${VERSION}"
 
+      - name: Voting and metadata regression checks
+        run: |
+          dotnet run --project tests/VoteChecks/VoteChecks.csproj -c Release
+          dotnet run --project tests/MetadataChecks/MetadataChecks.csproj -c Release
+
       - name: Publish test package
         run: dotnet publish sws2-cs2rockthevote.csproj -c Release --no-restore --no-build
 

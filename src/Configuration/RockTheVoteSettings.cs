@@ -5,27 +5,20 @@ public sealed class RockTheVoteSettings
 {
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Minimum connected human players required to request or start a vote.</summary>
-    public int MinimumPlayers { get; set; } = 4;
+    /// <summary>Reserved-map countdown after quorum; clamped to 5–30 seconds.</summary>
+    public int ChangeDelaySeconds { get; set; } = 5;
 
-    /// <summary>Minimum distinct player requests before an RTV vote starts.</summary>
-    public int MinimumRequests { get; set; } = 3;
+    /// <summary>Maximum time to select maps when none is reserved; clamped to 5–120 seconds.</summary>
+    public int MapVoteDurationSeconds { get; set; } = 30;
 
-    /// <summary>Fraction of connected human players required to request an RTV vote.</summary>
-    public double RequestRatio { get; set; } = 0.6;
+    /// <summary>Optional Steam title, author and preview lookups. Never required for voting.</summary>
+    public WorkshopMetadataSettings WorkshopMetadata { get; set; } = new();
+}
 
-    /// <summary>Number of random maps offered in a vote.</summary>
-    public int OptionCount { get; set; } = 5;
+public sealed class WorkshopMetadataSettings
+{
+    public bool Enabled { get; set; } = true;
 
-    /// <summary>How long players have to vote.</summary>
-    public int VoteDurationSeconds { get; set; } = 20;
-
-    /// <summary>Per-player cooldown between RTV requests.</summary>
-    public int RequestCooldownSeconds { get; set; } = 60;
-
-    /// <summary>Cooldown after a vote finishes before another RTV vote can start.</summary>
-    public int VoteCooldownSeconds { get; set; } = 180;
-
-    /// <summary>Delay after a winning result before mapmanager is asked to change maps.</summary>
-    public int ChangeDelaySeconds { get; set; } = 3;
+    /// <summary>Timeout for each Steam HTTP request, clamped to 1-120 seconds.</summary>
+    public int TimeoutSeconds { get; set; } = 30;
 }
