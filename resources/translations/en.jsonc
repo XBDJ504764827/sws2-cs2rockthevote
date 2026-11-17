@@ -2,8 +2,8 @@
   "rtv.prefix": "[Map Vote]",
   "rtv.disabled": "Map changing is currently disabled.",
   "rtv.unavailable": "The map service is unavailable. Ensure sws2-cs2mapmanager is loaded.",
-  "rtv.menu_unavailable": "The map reservation menu is unavailable. Ensure sws2-cs2menus is loaded.",
-  "rtv.menu_open_failed": "Could not open the map reservation menu.",
+  "rtv.menu_unavailable": "The map menu is unavailable. Ensure sws2-cs2menus is loaded.",
+  "rtv.menu_open_failed": "Could not open the map menu.",
   "rtv.no_maps": "The map list is empty.",
   "rtv.no_next_map": "There is no next map available in the configured map list.",
   "rtv.map_not_found": "Map not found: {0}.",
@@ -21,5 +21,13 @@
   "rtv.map_change_busy": "Map change failed: another map change is already in progress.",
   "rtv.map_change_failed": "Map change failed: {0}.",
   "rtv.reserve.help": "Select a map to reserve it. Players can then use !rtv to agree to the change.",
-  "rtv.map_changes_paused": "An administrator paused map changes. Vote again after they are resumed."
+  "rtv.map_changes_paused": "An administrator paused map changes. Vote again after they are resumed.",
+  "rtv.vote.title": "Vote for the Next Map",
+  "rtv.vote.help": "Choose one map. All ballots cast ends voting immediately; ties are random. Use !rtv to reopen.",
+  "rtv.vote.request": "{0} requested a map vote ({1}/{2}).",
+  "rtv.vote.started": "Choose a map within {0} seconds. Voting ends as soon as everyone selects; ties are random.",
+  "rtv.vote.cannot_vote": "You already selected a map or were not present when this ballot started.",
+  "rtv.vote.selected": "{0} voted for {1} ({2}/{3} players selected).",
+  "rtv.vote.no_votes": "No maps were selected. The map vote was cancelled.",
+  "rtv.vote.result": "Map voting finished. {0} won; requesting the change now."
 }

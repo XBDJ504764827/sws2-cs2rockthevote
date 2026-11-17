@@ -4,10 +4,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Sws2Cs2MapManagerContractsProject Condition="Exists('../../sws2-cs2mapmanager/contracts/Sws2Cs2MapManager.Contracts.csproj')">../../sws2-cs2mapmanager/contracts/Sws2Cs2MapManager.Contracts.csproj</Sws2Cs2MapManagerContractsProject>
+    <Sws2Cs2MapManagerContractsProject Condition="'$(Sws2Cs2MapManagerContractsProject)' == ''">../../../sws2-cs2mapmanager/contracts/Sws2Cs2MapManager.Contracts.csproj</Sws2Cs2MapManagerContractsProject>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <ProjectReference Include="../../../sws2-cs2mapmanager/contracts/Sws2Cs2MapManager.Contracts.csproj" />
+    <ProjectReference Include="$(Sws2Cs2MapManagerContractsProject)" />
     <Compile Include="../../src/Services/WorkshopMapMetadataProvider.cs" Link="WorkshopMapMetadataProvider.cs" />
     <Compile Include="../../src/Configuration/RockTheVoteSettings.cs" Link="RockTheVoteSettings.cs" />
   </ItemGroup>

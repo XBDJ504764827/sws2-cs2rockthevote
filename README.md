@@ -1,6 +1,6 @@
 # SWS2 CS2 Rock The Vote
 
-Player map reservations and consent-based map changes for SwiftlyS2. The map list and map changes come from `sws2-cs2mapmanager`; `sws2-cs2menus` displays the reservation menu.
+Player map reservations and consent-based map changes for SwiftlyS2. The map list and map changes come from `sws2-cs2mapmanager`; `sws2-cs2menus` displays reservation and voting menus.
 
 ## Requirements
 
@@ -15,9 +15,11 @@ Load the shared menu and map manager plugins before this plugin.
 
 1. Any player can use `!yd` to open the map reservation menu. The Custom HUD opens immediately with map names, separate CKZ NUB/PRO and VNL NUB/PRO tier badges, packaged map previews and cached Workshop title/creator details when available. Four maps fit on each page; clicking a map reserves it and closes the menu.
 2. `!yd <map name>` reserves a map directly. The reservation is announced in chat and a later reservation replaces it.
-3. Players use `!rtv` to agree to the reserved map. If nobody has reserved one, the next map in mapmanager's configured order is selected.
+3. Players use `!rtv` to agree to the reserved map. If nobody has reserved one, reaching the RTV threshold opens a map voting HUD for every connected human player, using the same pictures, ratings and pagination as `!yd`. The current map is excluded; map list order never chooses the winner.
 4. One player is enough on a one-player server; two players are required when there are two; two are required when there are three; servers with four or more players require at least 80% of connected human players. Each player counts once.
-5. Once the threshold is reached, `sws2-cs2mapmanager` owns the `ChangeDelaySeconds` countdown before changing maps or starting a required download. Disconnecting removes that player's agreement.
+5. With a reservation, reaching the threshold starts mapmanager's `ChangeDelaySeconds` countdown as before.
+6. Without a reservation, each player present when the ballot starts can choose one map. When all have chosen, the highest vote count wins immediately; tied leaders are selected uniformly at random. One player chooses and changes immediately; two choosing different maps produce a random choice between those maps; with three players, three different choices are random and a 2–1 split picks the map with two votes. Ballot results use a zero-second mapmanager countdown; a missing Workshop map still needs to download first.
+7. The ballot lasts at most `MapVoteDurationSeconds` (default 30, clamped to 5–120). At the deadline, only submitted votes count; no votes cancels the ballot. Closing the HUD abstains until the player reopens it with `!rtv`. Repeat selections are ignored. New arrivals wait for the next ballot. Disconnecting removes that player's agreement or ballot and can finish voting if everyone remaining has selected. Reservations cannot replace an active ballot.
 
 ## Configuration
 
@@ -28,6 +30,7 @@ Edit `configs/plugins/sws2-cs2rockthevote/config.jsonc`:
   "sws2-cs2rockthevote": {
     "Enabled": true,
     "ChangeDelaySeconds": 5,
+    "MapVoteDurationSeconds": 30,
     "WorkshopMetadata": {
       "Enabled": true,
       "TimeoutSeconds": 30
@@ -79,6 +82,15 @@ dotnet publish sws2-cs2rockthevote.csproj -c Release --no-restore
 
 Pull requests and `develop` pushes build downloadable test packages. Merging to `main` builds a versioned package and publishes a GitHub Release; dispatching the release workflow allows choosing patch, minor, or major.
 
+## Voting regression checks
+
+```sh
+dotnet run --project tests/VoteChecks/VoteChecks.csproj -c Release
+```
+
+Checks cover single-player completion, two/three-way ties, majority results,
+duplicate/invalid selections, partial votes, disconnects and independent ballot sessions.
+
 ## Metadata regression checks
 
 The checks simulate the nested timeout reported by HttpClient, a stalled request,
@@ -102,8 +114,8 @@ No manual version editing is required. The value committed in `src/VersionInfo.c
 
 ## Administrator map control
 
-RTV countdowns now belong to the shared map manager. Administrator **Cancel pending change now** clears existing votes and cancels the pending switch, including a switch waiting for a Workshop download. **Pause map changes now** also rejects new RTV requests. Resuming requires fresh votes; the reserved map is retained. Turning RTV off or unloading it cancels only its own pending request. Pause resets on map unload/restart.
+RTV countdowns belong to the shared map manager. Administrator cancel/pause actions also cancel any active map ballot and close its HUDs. Administrator **Cancel pending change now** clears existing votes and cancels the pending switch, including a switch waiting for a Workshop download. **Pause map changes now** also rejects new RTV requests. Resuming requires fresh votes; the reserved map is retained. Turning RTV off or unloading it cancels only its own pending request. Pause resets on map unload/restart.
 
-Install matching mapmanager, menus, admin and rockthevote packages together and restart the server. No new RTV configuration fields are needed.
+Install matching mapmanager, menus, admin and rockthevote packages together and restart the server. `MapVoteDurationSeconds` is optional; existing configurations use the default 30-second ballot deadline.
 
-RTV uses a **5-second** countdown by default. `ChangeDelaySeconds` is clamped to 5–30 seconds, so an existing setting of 3 automatically runs as 5 without regenerating configuration. Administrator panel changes use a separate **3-second** countdown. At the deadline, an installed map changes immediately; a missing Workshop map begins downloading immediately and switches only after download completion. Both the countdown and automatic switch after download remain cancellable.
+RTV for a reserved map uses a **5-second** countdown by default. An unreserved ballot requests the winning map immediately without this countdown. `ChangeDelaySeconds` is clamped to 5–30 seconds, so an existing setting of 3 automatically runs as 5 without regenerating configuration. Administrator panel changes use a separate **3-second** countdown. At the deadline, an installed map changes immediately; a missing Workshop map begins downloading immediately and switches only after download completion. Both the countdown and automatic switch after download remain cancellable.

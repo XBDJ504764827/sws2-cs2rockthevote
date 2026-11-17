@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Unreserved map voting
+
+- Open the shared map picker HUD for all connected human players after RTV reaches quorum with no reserved map, instead of choosing by catalog order.
+- Count one selection per player; choose the highest vote total and randomly resolve ties among leaders. Request the winning map immediately when all players finish.
+- Add an optional 30-second ballot deadline, reopening with `!rtv`, disconnect handling, stale ballot rejection and cleanup on map unload, disable or administrator cancel/pause.
+
 ### Administrator map control
 
 - Use a 5-second default/minimum RTV countdown, including existing configurations still set to 3. Start missing-map downloads only after the countdown.

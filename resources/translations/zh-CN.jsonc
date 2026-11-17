@@ -2,8 +2,8 @@
   "rtv.prefix": "[换图]",
   "rtv.disabled": "换图功能当前已关闭。",
   "rtv.unavailable": "地图服务不可用，请确认已加载 sws2-cs2mapmanager。",
-  "rtv.menu_unavailable": "地图预定菜单不可用，请确认已加载 sws2-cs2menus。",
-  "rtv.menu_open_failed": "无法打开地图预定菜单。",
+  "rtv.menu_unavailable": "地图菜单不可用，请确认已加载 sws2-cs2menus。",
+  "rtv.menu_open_failed": "无法打开地图菜单。",
   "rtv.no_maps": "地图列表为空。",
   "rtv.no_next_map": "地图列表中没有可切换的下一张地图。",
   "rtv.map_not_found": "未找到地图：{0}。",
@@ -21,5 +21,13 @@
   "rtv.map_change_busy": "地图切换失败：已有另一个地图切换正在进行。",
   "rtv.map_change_failed": "地图切换失败：{0}。",
   "rtv.reserve.help": "点击地图即可预定。预定后，玩家使用 !rtv 同意换图。",
-  "rtv.map_changes_paused": "管理员已暂停换图，请等待恢复后重新投票。"
+  "rtv.map_changes_paused": "管理员已暂停换图，请等待恢复后重新投票。",
+  "rtv.vote.title": "投票选择下一张地图",
+  "rtv.vote.help": "每人选择一张地图。全部选完立即换图，最高票并列时随机选择；关闭后可用 !rtv 重新打开。",
+  "rtv.vote.request": "{0}发起换图投票（{1}/{2}）。",
+  "rtv.vote.started": "选图投票已开始，请在{0}秒内选择地图；全部选完立即换图，最高票并列时随机选择。",
+  "rtv.vote.cannot_vote": "你已完成选图，或不在本次投票开始时的玩家名单中。",
+  "rtv.vote.selected": "{0}选择了地图{1}（已选择{2}/{3}）。",
+  "rtv.vote.no_votes": "没有玩家选择地图，本次换图投票已取消。",
+  "rtv.vote.result": "选图投票结束，胜出地图为{0}，立即发起换图。"
 }

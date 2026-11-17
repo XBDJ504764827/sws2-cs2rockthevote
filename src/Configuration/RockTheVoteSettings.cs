@@ -5,8 +5,11 @@ public sealed class RockTheVoteSettings
 {
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Countdown after quorum before changing maps or starting a missing-map download; clamped to 5–30 seconds.</summary>
+    /// <summary>Reserved-map countdown after quorum; clamped to 5–30 seconds.</summary>
     public int ChangeDelaySeconds { get; set; } = 5;
+
+    /// <summary>Maximum time to select maps when none is reserved; clamped to 5–120 seconds.</summary>
+    public int MapVoteDurationSeconds { get; set; } = 30;
 
     /// <summary>Optional Steam title, author and preview lookups. Never required for voting.</summary>
     public WorkshopMetadataSettings WorkshopMetadata { get; set; } = new();
